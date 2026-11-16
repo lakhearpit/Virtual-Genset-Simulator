@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Virtual Genset — SIL Simulation Environment</title>
+<style>
+:root{
+  --bg:#0a0d10; --panel:#12161b; --panel2:#161b21; --border:#232b34;
+  --text:#c9d4dd; --dim:#6b7885; --accent:#3ddc84; --amber:#ffb020;
+  --red:#ff4d4f; --blue:#4da6ff; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  box-sizing:border-box;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+header h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px;}
+header .tag{color:var(--dim);font-size:11px;}
+.state-pill{padding:3px 9px;border-radius:3px;border:1px solid var(--border);font-size:11px;background:var(--panel2);}
+.state-pill.run{color:var(--accent);border-color:#1c4d33;}
+.state-pill.fault{color:var(--red);border-color:#4d1c1c;background:#1a0f0f;}
+.state-pill.transit{color:var(--amber);border-color:#4d3a1c;}
+main{display:grid;grid-template-columns:280px 1fr 300px;gap:1px;background:var(--border);}
+@media (max-width:900px){main{grid-template-columns:1fr;}}
+section.col{background:var(--bg);display:flex;flex-direction:column;gap:1px;overflow:auto;}
+.panel{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 14px;}
+.panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin:0 0 10px 0;font-weight:600;}
+.gauge-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px dashed #1c232b;}
+.gauge-row:last-child{border-bottom:none;}
+.gauge-row .lbl{color:var(--dim);font-size:11px;}
+.gauge-row .val{font-size:15px;font-weight:600;}
+.val.ok{color:var(--accent);} .val.warn{color:var(--amber);} .val.bad{color:var(--red);}
+button{font-family:var(--mono);background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  padding:7px 10px;border-radius:3px;cursor:pointer;font-size:11.5px;}
+button:hover{border-color:var(--blue);}
+button:disabled{opacity:.35;cursor:not-allowed;}
+button.danger{border-color:#4d1c1c;color:var(--red);}
+button.primary{border-color:#1c4d33;color:var(--accent);}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.ctrl-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;}
+input[type=range]{width:100%;accent-color:var(--accent);}
+.switch{position:relative;display:inline-block;width:38px;height:20px;}
+.switch input{opacity:0;width:0;height:0;}
+.slider-tog{position:absolute;cursor:pointer;inset:0;background:#2a323c;border-radius:20px;transition:.15s;}
+.slider-tog:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#8a97a3;border-radius:50%;transition:.15s;}
+input:checked + .slider-tog{background:#1c4d33;}
+input:checked + .slider-tog:before{transform:translateX(18px);background:var(--accent);}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #1c232b;}
+th{color:var(--dim);font-weight:600;text-transform:uppercase;font-size:9.5px;letter-spacing:.4px;}
+td.status-active{color:var(--red);font-weight:600;}
+td.status-idle{color:var(--dim);}
+.mod-tree div{padding:4px 0;display:flex;justify-content:space-between;border-bottom:1px dashed #1c232b;}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--dim);}
+.dot.on{background:var(--accent);box-shadow:0 0 5px var(--accent);}
+.dot.warn{background:var(--amber);box-shadow:0 0 5px var(--amber);}
+.dot.off{background:var(--red);}
+#console{background:#0d1013;font-size:10.5px;line-height:1.6;height:150px;overflow-y:auto;padding:8px;border:1px solid var(--border);border-radius:3px;}
+#console .l{white-space:pre-wrap;}
+#console .l.f{color:var(--red);} #console .l.w{color:var(--amber);} #console .l.i{color:var(--dim);}
+canvas{width:100%;height:170px;background:#0d1013;border:1px solid var(--border);border-radius:3px;}
+.legend{display:flex;gap:12px;font-size:10px;color:var(--dim);margin-top:6px;flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:4px;}
+.legend i{width:9px;height:9px;display:inline-block;border-radius:2px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 40px;}
+select,input[type=number]{font-family:var(--mono);background:var(--panel2);color:var(--text);border:1px solid var(--border);padding:5px;border-radius:3px;width:100%;}
+.small{font-size:10.5px;color:var(--dim);}
+</style>
+</head>
+<body>
+<header>
+  <h1>VIRTUAL GENSET — SIL SIMULATION ENVIRONMENT</h1>
+  <span class="tag">software-in-the-loop · genset controls</span>
+  <span id="stEngine" class="state-pill">OFF</span>
+  <span id="stAts" class="state-pill">MAINS_OK</span>
+  <span id="stFault" class="state-pill">0 FAULTS</span>
+  <span style="flex:1"></span>
+  <span class="small">runtime: <span id="rtHours">00:00:00</span></span>
+</header>
+
+<main>
+<!-- LEFT: controls -->
+<section class="col">
+  <div class="panel">
+    <h2>Operator Controls</h2>
+    <div class="ctrl-row"><span>Battery Master</span>
+      <label class="switch"><input type="checkbox" id="battSw"><span class="slider-tog"></span></label></div>
+    <div class="ctrl-row"><span>Freq. Standard</span>
+      <select id="freqStd"><option value="50">50 Hz</option><option value="60">60 Hz</option></select></div>
+    <div class="btn-grid">
+      <button id="btnStart" class="primary">START</button>
+      <button id="btnStop">STOP</button>
+    </div>
+    <div style="margin-top:8px"><button id="btnEstop" class="danger" style="width:100%">EMERGENCY STOP</button></div>
+    <div class="btn-grid" style="margin-top:6px">
+      <button id="btnReset">Reset Faults</button>
+      <button id="btnRefuel">Refuel to 100%</button>
+    </div>
+    <div class="ctrl-row" style="flex-direction:column;align-items:stretch;margin-top:10px">
+      <span>Load % <b id="loadVal">0</b>%</span>
+      <input type="range" id="loadSlider" min="0" max="100" value="0">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>ATS / Mains Control</h2>
+    <div class="btn-grid">
+      <button id="btnMainsFail">Simulate Mains Fail</button>
+      <button id="btnMainsRestore">Restore Mains</button>
+    </div>
+    <p class="small" style="margin-top:8px">Fail-confirm delay 4s · retransfer cooldown 60s</p>
+  </div>
+
+  <div class="panel">
+    <h2>Test Scenarios</h2>
+    <div class="btn-grid" id="scenarios"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Data Logging</h2>
+    <div class="btn-grid">
+      <button id="btnExportCsv">Export CSV</button>
+      <button id="btnExportJson">Export JSON</button>
+    </div>
+    <p class="small" style="margin-top:8px" id="logCount">0 samples logged</p>
+  </div>
+</section>
+
+<!-- MIDDLE: instruments + graph + console -->
+<section class="col">
+  <div class="panel">
+    <h2>Instrument Cluster</h2>
+    <div class="grid2">
+      <div class="gauge-row"><span class="lbl">RPM</span><span class="val" id="gRpm">0</span></div>
+      <div class="gauge-row"><span class="lbl">Load</span><span class="val" id="gLoad">0 %</span></div>
+      <div class="gauge-row"><span class="lbl">Output</span><span class="val" id="gKw">0.0 kW</span></div>
+      <div class="gauge-row"><span class="lbl">Voltage</span><span class="val" id="gV">0 V</span></div>
+      <div class="gauge-row"><span class="lbl">Frequency</span><span class="val" id="gHz">0.0 Hz</span></div>
+      <div class="gauge-row"><span class="lbl">Coolant Temp</span><span class="val" id="gTemp">25 °C</span></div>
+      <div class="gauge-row"><span class="lbl">Oil Pressure</span><span class="val" id="gOil">0 bar</span></div>
+      <div class="gauge-row"><span class="lbl">Fuel Level</span><span class="val" id="gFuel">100 %</span></div>
+      <div class="gauge-row"><span class="lbl">Battery</span><span class="val" id="gBatt">12.6 V</span></div>
+      <div class="gauge-row"><span class="lbl">Exhaust Temp</span><span class="val" id="gExh">25 °C</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Real-time Signal Graph</h2>
+    <canvas id="graph" width="700" height="170"></canvas>
+    <div class="legend">
+      <span><i style="background:#3ddc84"></i>RPM/40</span>
+      <span><i style="background:#4da6ff"></i>Load %</span>
+      <span><i style="background:#ffb020"></i>Coolant °C</span>
+      <span><i style="background:#c94dff"></i>Fuel %</span>
+    </div>
+    <div class="btn-grid" style="margin-top:8px">
+      <button id="btnRecClear">Clear Graph</button>
+      <button id="btnRecToggle">Pause Graph</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="display:flex;justify-content:space-between;align-items:center"><span>Console / Problems <span id="probCount" class="small"></span></span><button id="btnClearConsole" style="padding:3px 8px;font-size:10.5px">Clear console</button></h2>
+    <div id="console"></div>
+  </div>
+</section>
+
+<!-- RIGHT: fault matrix + module tree -->
+<section class="col">
+  <div class="panel">
+    <h2>Fault State Matrix</h2>
+    <table>
+      <thead><tr><th>Code</th><th>Fault</th><th>Status</th></tr></thead>
+      <tbody id="faultMatrix"></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Fault Log</h2>
+    <table><thead><tr><th>Time</th><th>Code</th><th>Event</th></tr></thead>
+      <tbody id="faultLog"></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Module / State Tree</h2>
+    <div class="mod-tree">
+      <div><span><span class="dot" id="dotEngine"></span>EngineModel</span><span id="txtEngine" class="small">OFF</span></div>
+      <div><span><span class="dot" id="dotAlt"></span>AlternatorModel</span><span id="txtAlt" class="small">idle</span></div>
+      <div><span><span class="dot" id="dotAts"></span>ATSModel</span><span id="txtAts" class="small">MAINS_OK</span></div>
+      <div><span><span class="dot" id="dotFuel"></span>FuelModel</span><span id="txtFuel" class="small">nominal</span></div>
+      <div><span><span class="dot" id="dotFault"></span>FaultModel</span><span id="txtFault" class="small">clear</span></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+/* ---------- signalManager: central pub-sub bus ---------- */
+const signalManager = (() => {
+  const state = {};
+  const subs = {};
+  return {
+    set(k, v){ state[k] = v; (subs[k]||[]).forEach(fn => fn(v)); },
+    get(k){ return state[k]; },
+    on(k, fn){ (subs[k] = subs[k]||[]).push(fn); },
+    all(){ return {...state}; }
+  };
+})();
+const bus = signalManager;
+
+/* ---------- shared constants ---------- */
+const IDLE_RPM = 1500, RATED_RPM = 1500; // synchronous genset, governed
+const OVERSPEED_RPM = 1650;
+const CRANK_TIMEOUT = 15, WARMUP_TIME = 6, DROOP_PCT = 4, GOV_RECOVER_T = 1.5;
+const LOW_FUEL = 15, CRIT_FUEL = 5;
+const MAINS_FAIL_DELAY = 4, TRANSFER_BACK_DELAY = 3, COOLDOWN_TIME = 60;
+
+/* ---------- console / logging ---------- */
+const consoleEl = document.getElementById('console');
+function logMsg(msg, level='i'){
+  const t = new Date().toISOString().substr(11,8);
+  const div = document.createElement('div');
+  div.className = 'l ' + level;
+  div.textContent = `[${t}] ${msg}`;
+  consoleEl.appendChild(div);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+  while(consoleEl.children.length > 200) consoleEl.removeChild(consoleEl.firstChild);
+}
+
+/* ---------- fault model ---------- */
+const FAULT_DEFS = [
+  {code:'F01', name:'Overspeed'},
+  {code:'F02', name:'Low Oil Pressure'},
+  {code:'F03', name:'High Coolant Temp'},
+  {code:'F04', name:'Overcrank'},
+  {code:'F05', name:'Low Fuel (Critical)'},
+  {code:'F06', name:'Emergency Stop'},
+  {code:'F07', name:'Precheck: Fuel Low'},
+  {code:'F08', name:'Precheck: Battery Low'},
+  {code:'F09', name:'Precheck: Oil Sensor'},
+  {code:'F10', name:'Precheck: Coolant Low'},
+];
+const faultModel = (() => {
+  const active = new Set();
+  const logRows = [];
+  function raise(code){
+    if(active.has(code)) return;
+    active.add(code);
+    const def = FAULT_DEFS.find(f=>f.code===code);
+    logRows.unshift({t:new Date().toLocaleTimeString(), code, ev:`${def.name} — RAISED`});
+    logMsg(`FAULT ${code}: ${def.name} raised`, 'f');
+    renderFaultLog();
+  }
+  function clearAll(){
+    if(active.size===0) return;
+    active.forEach(code=>{
+      const def = FAULT_DEFS.find(f=>f.code===code);
+      logRows.unshift({t:new Date().toLocaleTimeString(), code, ev:`${def.name} — cleared`});
+    });
+    active.clear();
+    renderFaultLog();
+  }
+  function renderFaultLog(){
+    const tb = document.getElementById('faultLog');
+    tb.innerHTML = logRows.slice(0,40).map(r=>`<tr><td>${r.t}</td><td>${r.code}</td><td>${r.ev}</td></tr>`).join('');
+  }
+  function renderMatrix(){
+    const tb = document.getElementById('faultMatrix');
+    tb.innerHTML = FAULT_DEFS.map(f=>{
+      const on = active.has(f.code);
+      return `<tr><td>${f.code}</td><td>${f.name}</td><td class="${on?'status-active':'status-idle'}">${on?'ACTIVE':'idle'}</td></tr>`;
+    }).join('');
+  }
+  function update(){
+    document.getElementById('stFault').textContent = active.size + ' FAULTS';
+    document.getElementById('stFault').className = 'state-pill ' + (active.size? 'fault':'');
+    document.getElementById('probCount').textContent = active.size? `(${active.size} problem${active.size>1?'s':''})` : '';
+    document.getElementById('dotFault').className = 'dot ' + (active.size?'off':'on');
+    document.getElementById('txtFault').textContent = active.size? 'fault active':'clear';
+    renderMatrix();
+  }
+  return { raise, clearAll, isActive: c=>active.has(c), any: ()=>active.size>0, update };
+})();
+faultModel.update();
+
+/* ---------- engine model (state machine) ---------- */
+const engineModel = (() => {
+  let state = 'OFF', rpm = 0, warmupT = 0, crankT = 0, cooldownT = 0;
+  let battV = 12.6, oilP = 0, coolT = 25, exhT = 25, runSeconds = 0;
+  function battOn(){ return document.getElementById('battSw').checked; }
+  function precheckOk(){
+    let ok = true;
+    if(fuelModel.level() <= 10){ faultModel.raise('F07'); ok=false; }
+    if(battV <= 11.5){ faultModel.raise('F08'); ok=false; }
+    if(coolT > 105){ faultModel.raise('F10'); ok=false; }
+    return ok;
+  }
+  function start(){
+    if(state!=='OFF') return;
+    if(!battOn()){ logMsg('Cannot start: battery master OFF','w'); return; }
+    if(faultModel.any()){ logMsg('Cannot start: active faults present — clear/reset first','w'); return; }
+    state = 'PRECHECK';
+    logMsg('Start command received — running pre-checks');
+  }
+  function stop(){
+    if(state==='RUNNING_WARMUP' || state==='RUNNING_LOADED'){
+      state='COOLDOWN'; cooldownT=0; bus.set('load',0);
+      logMsg('Stop command — entering cooldown');
+    } else if(state==='CRANKING' || state==='PRECHECK'){
+      state='OFF'; logMsg('Start sequence aborted');
+    }
+  }
+  function estop(){
+    faultModel.raise('F06');
+    state='OFF'; rpm=0; bus.set('load',0);
+    logMsg('EMERGENCY STOP triggered','f');
+  }
+  function update(dt){
+    if(!battOn() && state!=='OFF'){ state='OFF'; rpm=0; logMsg('Battery master opened — engine off','w'); }
+    battV = battOn() ? 12.6 : 0;
+
+    switch(state){
+      case 'OFF':
+        rpm = Math.max(0, rpm - 300*dt); crankT=0; warmupT=0;
+        coolT += (25 - coolT) * Math.min(1, dt*0.05); // engine cools toward ambient (25 °C) while OFF
+        break;
+      case 'PRECHECK':
+        if(precheckOk()){ state='CRANKING'; crankT=0; logMsg('Pre-checks passed — cranking'); }
+        else { state='OFF'; }
+        break;
+      case 'CRANKING':
+        crankT += dt; rpm = Math.min(400, rpm + 250*dt);
+        if(crankT >= 1.2){ // catches
+          state='RUNNING_WARMUP'; warmupT=0; logMsg('Engine caught — warming up');
+        }
+        if(crankT >= CRANK_TIMEOUT){ faultModel.raise('F04'); state='OFF'; rpm=0; }
+        break;
+      case 'RUNNING_WARMUP':
+        warmupT += dt;
+        rpm += (IDLE_RPM - rpm) * Math.min(1, dt*1.5);
+        oilP = Math.min(4.2, oilP + 3*dt);
+        coolT += 4*dt;
+        if(warmupT >= WARMUP_TIME){ state='RUNNING_LOADED'; logMsg('Warm-up complete — ready for load'); }
+        break;
+      case 'RUNNING_LOADED': {
+        const loadPct = bus.get('load')||0;
+        const targetRpm = RATED_RPM * (1 - (DROOP_PCT/100)*(loadPct/100));
+        rpm += (targetRpm - rpm) * Math.min(1, dt/GOV_RECOVER_T);
+        oilP = 3.0 + 1.6*(loadPct/100);
+        coolT += ((70 + 30*(loadPct/100)) - coolT) * Math.min(1, dt*0.15);
+        exhT += ((280 + 220*(loadPct/100)) - exhT) * Math.min(1, dt*0.2);
+        runSeconds += dt;
+        if(rpm > OVERSPEED_RPM) faultModel.raise('F01');
+        if(oilP < 1.5) faultModel.raise('F02');
+        if(coolT > 108) faultModel.raise('F03');
+        if(fuelModel.level() <= CRIT_FUEL) faultModel.raise('F05');
+        if(faultModel.any()){ state='COOLDOWN'; cooldownT=0; bus.set('load',0); logMsg('Fault detected — emergency shutdown sequence','f'); }
+        break; }
+      case 'COOLDOWN':
+        cooldownT += dt;
+        oilP = Math.max(0, oilP - 2*dt);
+        coolT += (30 - coolT) * dt*0.05;
+        exhT += (25 - exhT) * dt*0.3;
+        rpm += (IDLE_RPM*0.4 - rpm) * Math.min(1, dt*0.5);
+        if(cooldownT >= 5){ state='OFF'; rpm=0; oilP=0; logMsg('Cooldown complete — engine OFF'); }
+        break;
+    }
+    bus.set('rpm', Math.max(0,rpm)); bus.set('coolT', coolT); bus.set('oilP', Math.max(0,oilP));
+    bus.set('exhT', exhT); bus.set('battV', battV); bus.set('engineState', state); bus.set('runSeconds', runSeconds);
+  }
+  return { start, stop, estop, update, state:()=>state, setCoolT:(v)=>{ coolT=v; } };
+})();
+
+/* ---------- alternator model ---------- */
+const alternatorModel = (() => {
+  function update(){
+    const rpm = bus.get('rpm')||0, loadPct = bus.get('load')||0;
+    const nomHz = parseInt(document.getElementById('freqStd').value,10);
+    const running = engineModel.state()==='RUNNING_LOADED';
+    const hz = running ? nomHz * (rpm/RATED_RPM) : 0;
+    const v = running ? 415 * Math.min(1, rpm/RATED_RPM) : 0;
+    const kwCap = 100; // kVA-class placeholder rated capacity
+    const kw = running ? kwCap * (loadPct/100) * Math.min(1, rpm/RATED_RPM) : 0;
+    bus.set('hz', hz); bus.set('volt', v); bus.set('kw', kw);
+  }
+  return { update };
+})();
+
+/* ---------- fuel model ---------- */
+const fuelModel = (() => {
+  let level = 100; // %
+  function update(dt){
+    const loadPct = bus.get('load')||0;
+    const running = engineModel.state()==='RUNNING_LOADED' || engineModel.state()==='RUNNING_WARMUP';
+    if(running){
+      const burnPctPerSec = (0.004 + 0.010*(loadPct/100)); // idle burns least, full load most
+      level = Math.max(0, level - burnPctPerSec*dt);
+    }
+    bus.set('fuel', level);
+    document.getElementById('txtFuel').textContent = level.toFixed(1)+'% '+(level<=LOW_FUEL?'(LOW)':'nominal');
+    document.getElementById('dotFuel').className = 'dot ' + (level<=CRIT_FUEL?'off':level<=LOW_FUEL?'warn':'on');
+  }
+  function set(v){ level = v; }
+  return { update, level:()=>level, set };
+})();
+
+/* ---------- ATS model (state machine) ---------- */
+const atsModel = (() => {
+  let state = 'MAINS_OK', t = 0;
+  function failMains(){ if(state==='MAINS_OK'){ state='MAINS_FAIL_DETECTED'; t=0; logMsg('Mains failure simulated'); } }
+  function restoreMains(){
+    if(['GENSET_RUNNING_STABLE','ON_GENSET'].includes(state)){ state='MAINS_RESTORED'; t=0; logMsg('Mains restored'); }
+    else if(state==='MAINS_FAIL_DETECTED'){ state='MAINS_OK'; logMsg('Mains restored before transfer'); }
+  }
+  function update(dt){
+    switch(state){
+      case 'MAINS_FAIL_DETECTED':
+        t+=dt;
+        if(t>=MAINS_FAIL_DELAY){ state='GENSET_START'; t=0; engineModel.start(); logMsg('Mains-fail confirmed — starting genset'); }
+        break;
+      case 'GENSET_START':
+        if(engineModel.state()==='RUNNING_LOADED'){ state='GENSET_RUNNING_STABLE'; t=0; }
+        if(faultModel.any()){ state='MAINS_OK'; logMsg('ATS abort: engine fault during start','f'); }
+        break;
+      case 'GENSET_RUNNING_STABLE':
+        t+=dt;
+        if(t>=2){ state='TRANSFER_LOAD'; logMsg('Genset stable — transferring load'); }
+        break;
+      case 'TRANSFER_LOAD':
+        state='ON_GENSET'; document.getElementById('loadSlider').value=60; document.getElementById('loadSlider').dispatchEvent(new Event('input'));
+        logMsg('Load transferred to genset');
+        break;
+      case 'MAINS_RESTORED':
+        t+=dt;
+        if(t>=TRANSFER_BACK_DELAY){ state='TRANSFER_BACK'; logMsg('Transferring load back to mains'); }
+        break;
+      case 'TRANSFER_BACK':
+        document.getElementById('loadSlider').value=0; document.getElementById('loadSlider').dispatchEvent(new Event('input'));
+        state='COOLDOWN'; t=0; engineModel.stop();
+        break;
+      case 'COOLDOWN':
+        t+=dt;
+        if(t>=COOLDOWN_TIME || t>=6){ state='MAINS_OK'; logMsg('ATS cooldown complete — genset off, mains normal'); }
+        break;
+    }
+    bus.set('atsState', state);
+  }
+  return { failMains, restoreMains, update, state:()=>state };
+})();
+
+/* ---------- dashboard rendering ---------- */
+const dashboard = (() => {
+  function fmt(n,d=0){ return Number(n).toFixed(d); }
+  function cls(v, warnAt, badAt, invert=false){
+    if(invert) return v<badAt?'bad':v<warnAt?'warn':'ok';
+    return v>badAt?'bad':v>warnAt?'warn':'ok';
+  }
+  function render(){
+    const rpm=bus.get('rpm')||0, load=bus.get('load')||0, kw=bus.get('kw')||0, v=bus.get('volt')||0,
+          hz=bus.get('hz')||0, coolT=bus.get('coolT')||25, oilP=bus.get('oilP')||0, fuel=fuelModel.level(),
+          battV=bus.get('battV')||0, exhT=bus.get('exhT')||25, rs=bus.get('runSeconds')||0;
+
+    document.getElementById('gRpm').textContent = fmt(rpm);
+    document.getElementById('gLoad').textContent = fmt(load)+' %';
+    document.getElementById('gKw').textContent = fmt(kw,1)+' kW';
+    document.getElementById('gV').textContent = fmt(v)+' V';
+    document.getElementById('gHz').textContent = fmt(hz,1)+' Hz';
+    const tEl=document.getElementById('gTemp'); tEl.textContent=fmt(coolT)+' °C'; tEl.className='val '+cls(coolT,95,108);
+    const oEl=document.getElementById('gOil'); oEl.textContent=fmt(oilP,1)+' bar'; oEl.className='val '+cls(oilP,2,1.5,true);
+    const fEl=document.getElementById('gFuel'); fEl.textContent=fmt(fuel,1)+' %'; fEl.className='val '+cls(fuel,LOW_FUEL,CRIT_FUEL,true);
+    document.getElementById('gBatt').textContent = fmt(battV,1)+' V';
+    document.getElementById('gExh').textContent = fmt(exhT)+' °C';
+
+    const h=Math.floor(rs/3600), m=Math.floor((rs%3600)/60), s=Math.floor(rs%60);
+    document.getElementById('rtHours').textContent = [h,m,s].map(x=>String(x).padStart(2,'0')).join(':');
+
+    const es = engineModel.state();
+    const stEl = document.getElementById('stEngine');
+    stEl.textContent = es;
+    stEl.className = 'state-pill ' + (es==='RUNNING_LOADED'?'run':(es==='OFF'?'':'transit'));
+    document.getElementById('txtEngine').textContent = es;
+    document.getElementById('dotEngine').className = 'dot ' + (es==='RUNNING_LOADED'?'on':es==='OFF'?'off':'warn');
+    document.getElementById('dotAlt').className = 'dot ' + (kw>0?'on':'off');
+    document.getElementById('txtAlt').textContent = kw>0? fmt(kw,1)+' kW':'idle';
+
+    const as = atsModel.state();
+    document.getElementById('stAts').textContent = as;
+    document.getElementById('stAts').className = 'state-pill ' + (as==='MAINS_OK'?'':'transit');
+    document.getElementById('txtAts').textContent = as;
+    document.getElementById('dotAts').className = 'dot ' + (as==='MAINS_OK'?'on':'warn');
+
+    document.getElementById('loadVal').textContent = fmt(load);
+    const sl = document.getElementById('loadSlider'); if(+sl.value !== Math.round(load)) sl.value = Math.round(load); // keep slider in sync with the real load signal
+    faultModel.update();
+  }
+  return { render };
+})();
+
+/* ---------- signal graph (canvas) ---------- */
+const graph = (() => {
+  const canvas = document.getElementById('graph');
+  const ctx = canvas.getContext('2d');
+  let history = [];
+  let recording = true;
+  const MAXPTS = 300;
+  function push(){
+    if(!recording) return;
+    history.push({rpm:bus.get('rpm')||0, load:bus.get('load')||0, coolT:bus.get('coolT')||25, fuel:fuelModel.level()});
+    if(history.length>MAXPTS) history.shift();
+  }
+  function draw(){
+    const w=canvas.width, h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='#1c232b'; ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){ const y=h/4*i; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    function line(key, scale, color){
+      ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.beginPath();
+      history.forEach((p,i)=>{
+        const x = (i/(MAXPTS-1))*w;
+        const y = h - Math.min(1,(p[key]*scale)/100)*h;
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    }
+    line('rpm', 100/1700*1, '#3ddc84');
+    line('load', 1, '#4da6ff');
+    line('coolT', 100/120, '#ffb020');
+    line('fuel', 1, '#c94dff');
+  }
+  function clear(){ history=[]; draw(); }
+  function toggle(){ recording=!recording; document.getElementById('btnRecToggle').textContent = recording?'Pause Graph':'Resume Graph'; }
+  return { push, draw, clear, toggle };
+})();
+
+/* ---------- data historian / export ---------- */
+const historian = (() => {
+  const rows = [];
+  function sample(){
+    rows.push({
+      t: new Date().toISOString(), engineState: engineModel.state(), atsState: atsModel.state(),
+      rpm: Math.round(bus.get('rpm')||0), loadPct: Math.round(bus.get('load')||0),
+      kw: +(bus.get('kw')||0).toFixed(2), volt: Math.round(bus.get('volt')||0), hz: +(bus.get('hz')||0).toFixed(2),
+      coolT: Math.round(bus.get('coolT')||0), oilP: +(bus.get('oilP')||0).toFixed(2),
+      fuelPct: +fuelModel.level().toFixed(2), faults: FAULT_DEFS.filter(f=>faultModel.isActive(f.code)).map(f=>f.code).join('|')
+    });
+    if(rows.length>20000) rows.shift();
+    document.getElementById('logCount').textContent = rows.length + ' samples logged';
+  }
+  function download(name, text, type){
+    const blob = new Blob([text],{type}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href);
+  }
+  function exportCsv(){
+    if(!rows.length){ logMsg('No samples to export','w'); return; }
+    const cols = Object.keys(rows[0]);
+    const csv = [cols.join(',')].concat(rows.map(r=>cols.map(c=>r[c]).join(','))).join('\n');
+    download('genset_historian_log.csv', csv, 'text/csv');
+    logMsg('Historian-style CSV export complete ('+rows.length+' rows)');
+  }
+  function exportJson(){
+    if(!rows.length){ logMsg('No samples to export','w'); return; }
+    download('genset_historian_log.json', JSON.stringify(rows,null,2), 'application/json');
+    logMsg('Historian-style JSON export complete ('+rows.length+' rows)');
+  }
+  return { sample, exportCsv, exportJson };
+})();
+
+/* ---------- test scenarios ---------- */
+const scenarios = {
+  'Cold Start': () => { document.getElementById('battSw').checked=true; engineModel.start(); },
+  'Full Load Step': () => { document.getElementById('loadSlider').value=100; document.getElementById('loadSlider').dispatchEvent(new Event('input')); },
+  'Mains Failure': () => atsModel.failMains(),
+  'Overload Trip': () => {
+    if(engineModel.state()!=='RUNNING_LOADED'){ logMsg('Overload Trip needs the engine in RUNNING_LOADED — start it first','w'); return; }
+    document.getElementById('loadSlider').value=100; document.getElementById('loadSlider').dispatchEvent(new Event('input'));
+    engineModel.setCoolT(109); logMsg('Overload injected: 100% load, coolant forced to 109 °C','w');
+  },
+  'Low Fuel Shutdown': () => fuelModel.set(4),
+  'Emergency Stop': () => engineModel.estop(),
+  'Maintenance Due Warning': () => logMsg('SCHEDULED MAINTENANCE DUE: 250h service interval reached', 'w'),
+};
+const scenEl = document.getElementById('scenarios');
+Object.keys(scenarios).forEach(name=>{
+  const b=document.createElement('button'); b.textContent=name; b.onclick=scenarios[name];
+  scenEl.appendChild(b);
+});
+
+/* ---------- wire up controls ---------- */
+document.getElementById('btnStart').onclick = ()=>engineModel.start();
+document.getElementById('btnStop').onclick = ()=>engineModel.stop();
+document.getElementById('btnEstop').onclick = ()=>engineModel.estop();
+document.getElementById('btnReset').onclick = ()=>{
+  if(engineModel.state()!=='OFF'){ logMsg('Reset refused: engine must be OFF','w'); return; }
+  if(!faultModel.any()){ logMsg('No active faults to reset'); return; }
+  faultModel.clearAll(); faultModel.update(); logMsg('Faults reset — start is permitted again');
+};
+document.getElementById('btnRefuel').onclick = ()=>{ fuelModel.set(100); logMsg('Tank refuelled to 100%'); };
+document.getElementById('btnMainsFail').onclick = ()=>atsModel.failMains();
+document.getElementById('btnMainsRestore').onclick = ()=>atsModel.restoreMains();
+document.getElementById('loadSlider').addEventListener('input', e=> bus.set('load', +e.target.value));
+document.getElementById('btnExportCsv').onclick = ()=>historian.exportCsv();
+document.getElementById('btnExportJson').onclick = ()=>historian.exportJson();
+document.getElementById('btnRecClear').onclick = ()=>graph.clear();
+document.getElementById('btnRecToggle').onclick = ()=>graph.toggle();
+document.getElementById('btnClearConsole').onclick = ()=>{ consoleEl.innerHTML = ''; };
+
+/* ---------- main fixed-timestep loop ---------- */
+const TICK_MS = 200;
+let lastSample = 0;
+setInterval(()=>{
+  const dt = TICK_MS/1000;
+  engineModel.update(dt);
+  alternatorModel.update();
+  fuelModel.update(dt);
+  atsModel.update(dt);
+  dashboard.render();
+  graph.push(); graph.draw();
+  lastSample += dt;
+  if(lastSample >= 1){ historian.sample(); lastSample = 0; }
+}, TICK_MS);
+
+logMsg('Virtual Genset SIL environment initialized. Toggle battery master and press START, or run a test scenario.');
+</script>
+</body>
+</html>
